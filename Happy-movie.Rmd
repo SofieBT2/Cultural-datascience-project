@@ -1,0 +1,327 @@
+---
+title: "Sofie_try"
+output: html_document
+date: "2024-11-19"
+---
+Due to exam formalia, initials for Kristiane (KUW) and Sofie (SBT) has been added to the code chunks in order to individually assess performance.
+(KUW)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+(SBT)
+```{r setup, include=FALSE}
+# Install and load the packages
+install.packages("readr")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("data.table")
+install.packages("tidyr")
+install.packages("maps")
+install.packages("mapdata")
+install.packages("patchwork")
+```
+
+(KUW)
+```{r}
+#Load packages
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(tidyr)
+library(maps)
+library(mapdata)
+library(patchwork)
+```
+(SBT)
+```{r}
+# Loading the data set with Netflix's weekly top 10 scores of movies and shows
+country <- read_tsv("all-weeks-countries.tsv")
+
+# Subset only films
+country <- country %>%
+    filter(category == "Films") 
+    
+```
+(KUW)
+```{r}
+# Ensure the 'week' column is in Date format
+country$week <- as.Date(country$week)
+
+# Filter the data frame for rows where the year is NOT 2024
+country_not_2024 <- subset(country, format(week, "%Y") != "2024")
+
+# View the filtered data frame
+head(country_not_2024)
+
+```
+(SBT)
+```{r}
+# Loading the data set with the happiness scores for various countries
+happy <- read_csv("happiest-countries-in-the-world-2024.csv")
+
+# Select only two of the columns for further inspection
+happy <- happy %>%
+  select(country, HappiestCountriesWorldHappinessReportScore2024)
+
+```
+(KUW)
+```{r}
+# Create a distribution plot for the happiness scores
+ggplot(happy, aes(x = HappiestCountriesWorldHappinessReportScore2024)) +
+  geom_histogram(binwidth = 0.05, fill = "seagreen1", color = "black", alpha = 0.7) +
+  labs(
+    title = "Distribution of Happiness Scores (2024)",
+    x = "Happiness Score",
+    y = "Frequency"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.title = element_text(size = 12)
+  )
+```
+
+(SBT)
+```{r}
+# Loading the Netflix data frame with Netflix movies and shows and the categories or genres they are listed in
+genre <- read_csv("Netflix_genre.csv")
+
+# Subsetting only movies in the df
+genre <- genre %>%
+    filter(type == "Movie")
+```
+(KUW)
+```{r}
+# Join the genre data with the top 10 lists from before 2024 of Netflix movies 
+merged_df <- country_not_2024 %>%
+  left_join(genre, by = c("show_title" = "title"))
+```
+(SBT)
+```{r}
+# Filter rows where listed_in is not NA
+merged_df <- merged_df %>%
+  filter(!is.na(listed_in))
+
+```
+
+(KUW)
+```{r}
+# Perform a left join to merge 'merged_df' with 'happy'
+df <- merge(merged_df, happy, by.x = "country_name", by.y = "country", all.x = TRUE)
+
+# View the resulting merged dataframe
+head(df)
+
+```
+(SBT)
+```{r}
+# Calculate total movie count for each country
+df <- df %>%
+  group_by(country_name) %>%
+  mutate(total_movie_count = n()) %>%      # Add total movie count for each country
+  ungroup()  
+```
+(KUW)
+```{r}
+# Adding a column with proportion of liked movie genres in each country
+df <- df %>%
+  separate_rows(listed_in, sep = ", ") %>% # Split genres into separate rows
+  group_by(country_name, listed_in) %>%    # Group by country and genre
+  mutate(count = n()) %>%                  # Add the count column
+  mutate(genre_proportion = count / total_movie_count) %>% # Calculate genre proportion
+  ungroup()                                   # Ungroup to return the original structure
+```
+
+(SBT)
+```{r}
+# Reorder the genres based on median genre_proportion to be used for the following boxplot
+df <- df %>%
+  mutate(listed_in = reorder(listed_in, genre_proportion, median))
+
+
+# Create a boxplot
+ggplot(df, aes(x = listed_in, y = genre_proportion, fill = listed_in)) +
+  geom_boxplot(alpha = 0.7) + # Add boxplots with transparency
+  labs(
+    title = "Boxplot of Genre Proportions by Genre",
+    x = "Genre",
+    y = "Genre Proportion",
+    fill = "Genre"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1), # Rotates the genre labels for readability
+    axis.title = element_text(size = 12),
+    legend.position = "none" # Hides legend since fill matches x-axis labels
+  )
+```
+
+(KUW)
+# Investigating the horror movie genre from now on
+We chose this genre as we found most literature investigating patterns and theories within this genre.
+```{r}
+# Count occurrences of horror movies grouped by country_name
+horror_summary <- df %>%
+  filter(listed_in == "Horror Movies") %>% 
+  group_by(country_name) %>%               
+  summarize(horror_count = n())   
+
+# View the summary
+print(horror_summary)
+
+```
+```{r}
+# Filter data for Horror Movies
+horror_movies_df <- df[df$listed_in == "Horror Movies", ]
+```
+
+(SBT)
+```{r}
+
+# Create a scatter plot
+ggplot(horror_movies_df, aes(x = HappiestCountriesWorldHappinessReportScore2024, y = genre_proportion)) +
+  geom_point(color = "blue", size = 2, alpha = 0.7) + 
+  labs(
+    title = "Horror Movies Genre Proportion vs. Happiness Score by Country",
+    x = "Happiness Score (2024)",
+    y = "Horror Movies Genre Proportion"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.title = element_text(size = 12)
+  )
+```
+
+(KUW)
+```{r}
+#Create a simple data frame with only country, horror proportion and happiness score
+df_horror_simple <- horror_movies_df %>%
+  select(country_name, HappiestCountriesWorldHappinessReportScore2024, genre_proportion) %>%
+  filter(complete.cases(.))
+
+# Renaming columns for simplicity
+df_horror_simple <- df_horror_simple %>%
+  rename(happiness_score = HappiestCountriesWorldHappinessReportScore2024,
+         horror_proportion = genre_proportion)
+
+df_horror_simple <- df_horror_simple %>%
+  distinct(country_name, happiness_score, horror_proportion)
+
+```
+
+(SBT)
+## Assumptions 
+
+In order to do a correlation test, we need to check for assumptions for those tests. For Pearson's correlation test the assumptions are Linearity, Normality, Homoschedasticity and Independence.
+
+```{r}
+#Checking for Linearity
+
+ggplot(df_horror_simple, aes(x = happiness_score, y = horror_proportion)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Linear Regression Line on Scatterplot",
+       x = "Happiness Score (2024)",
+       y = "Horror Movies Genre Proportion")
+
+```
+(KUW)
+```{r}
+#Checking residuals for Linearity
+
+model <- lm(horror_proportion ~ happiness_score, data = df_horror_simple)
+plot(model, which = 1)  # Residuals vs Fitted
+
+```
+**Linearity:**
+The relationship between happiness_score and horror_proportion is not perfectly linear. The red smoothing line in the residuals vs fitted plot suggests that the linear model is not capturing the full trend in the data. Thus the assumption is violated.
+
+Due to this, we will check for monotonicity and independency in order to accomodate for the assumptions of the Spearman correlation test.
+
+**Monotonicity**
+The Spearman correlation assumes a monotonic relationship between the two variables. This means that as one variable increases, the other either consistently increases or consistently decreases, but the relationship does not have to be linear. 
+
+From the scatterplot above, it seems that this does not exactly the case for the happiness score and horror proportion  either. Though, there might be a weak monotonic trend towards an increase in happiness score leading to a decrease in the proportion of horror-movies. 
+
+However, as this is not certain, we will use the **Kendall's tau** correlation test. This test also works for non-monotonic data, and for data containing tied ranks, such as countries having the same happiness score. Furthermore, it performs better with small sample sizes, which our data can also somewhat be classified as.
+
+(SBT)
+```{r}
+# Perform Kendall's Tau correlation test
+cor.test(df_horror_simple$horror_proportion, df_horror_simple$happiness_score, method = "kendall")
+
+```
+Interpreting the Kendall's rank correlation tau, the p-value (p<0.05) seems to indicate a statistically significant negative relationship between the proportion of horror movies in the weekly top 10 movies for each country in the years 2021-2023 and the corresponding happiness score for each country in those years. Thus, countries with higher proportions of horror movies in these top 10 lists tend to have slightly lower happiness scores.
+However, when looking at Kendall's correlation coefficient (τ=−0.221), this effect is weak. A tau of -1 or +1 would indicate a perfect negative or positive correlation. Thus, this effect size is weak. 
+
+# Learning to make world maps
+(KUW)
+```{r}
+# Renaming countries to fit with the map packages
+df_horror_simple$country_name <- df_horror_simple$country_name %>%
+  dplyr::recode("United States" = "USA", 
+                "Hong Kong" = "China")
+```
+
+(SBT)
+```{r}
+# Merge the data with the world map
+world_map <- map("world", fill = TRUE, plot = FALSE)
+world_data <- map_data("world")
+world_data <- subset(world_data, region != "Antarctica")
+world_data <- merge(world_data, df_horror_simple, by.x = "region", by.y = "country_name", all.x = TRUE)
+```
+
+(KUW)
+```{r}
+# Horror World heat map
+horror_map <- ggplot(world_data, aes(long, lat, group = group, fill = horror_proportion)) +
+  geom_polygon(color = NA) +
+  theme(legend.title = element_blank()) +
+  scale_fill_gradient(low = "white", high = "red", na.value = "gray90", name = "Horror Proportion") +
+  theme_minimal() +
+  labs(title = "Horror Movie Proportion")
+```
+
+(SBT)
+```{r}
+# Happiness World Heat map
+happiness_map <- ggplot(world_data, aes(long, lat, group = group, fill = happiness_score)) +
+  geom_polygon(color = NA) +
+  theme(legend.title = element_blank()) +
+  scale_fill_gradient(low = "white", high = "red", na.value = "gray90", name = "Happiness Score") +
+  theme_minimal() +
+  labs(title = "Happiness Score")
+```
+
+(KUW)
+```{r}
+horror_map <- horror_map +
+  theme(legend.title = element_blank())  # Removes the legend title
+
+happiness_map <- happiness_map +
+  theme(legend.title = element_blank())  # Removes the legend title
+```
+
+(SBT)
+```{r}
+# Combine the two maps side by side
+heatmaps <- horror_map + happiness_map + 
+  plot_layout(ncol = 2, widths = c(2, 2)) +  
+  plot_annotation(
+    title = "World Heat Maps"
+  )
+
+heatmaps
+```
+
+(KUW)
+```{r}
+# Save the combined plot with wider dimensions in the working directory
+ggsave("heatmaps.png", width = 16, height = 8, dpi = 300)
+
+```
+
